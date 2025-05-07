@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pack Calculator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/alpinejs" defer></script>
+</head>
+<body class="bg-gray-100 p-8" x-data="packCalculator()" x-init="init()">
+  <div class="max-w-xl mx-auto bg-white shadow p-6 rounded">
+    <h1 class="text-2xl font-bold mb-4">Pack Calculator</h1>
+
+    <!-- Error message display -->
+    <div x-show="errorMessage" class="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4">
+      <p x-text="errorMessage"></p>
+    </div>
+
+    <!-- Pack List Editor -->
+    <div class="mb-6">
+      <h2 class="text-lg font-semibold mb-2">1. Edit Pack Sizes</h2>
+      <div class="flex items-center gap-2 mb-2">
+        <input type="text" x-model="packInput" placeholder="e.g. 23,31,53" class="border p-2 rounded w-full">
+        <button @click="savePacks" class="bg-blue-500 text-white px-4 py-2 rounded">Save</button>
+      </div>
+      <p class="text-sm text-gray-600">Current: <span x-text="packs.length == 0 ? 'No packs set yet' : packs.join(', ')"></span></p>
+    </div>
+
+    <!-- Amount Calculation -->
+    <div class="mb-6">
+      <h2 class="text-lg font-semibold mb-2">2. Calculate Packs</h2>
+      <div class="flex items-center gap-2 mb-2">
+        <input type="number" x-model.number="amount" placeholder="Enter amount" class="border p-2 rounded w-full">
+        <button @click="calculate" class="bg-green-500 text-white px-4 py-2 rounded">Calculate</button>
+      </div>
+      <div x-show="Object.keys(result).length > 0" class="mt-4">
+        <h3 class="font-medium">Result:</h3>
+        <ul class="list-disc pl-5">
+          <template x-for="(qty, size) in result" :key="size">
+            <li x-text="`${size} → ${qty} pack(s)`"></li>
+          </template>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function packCalculator() {
+      return {
+        packInput: '',
+        packs: [],
+        amount: null,
+        result: {},
+        errorMessage: '',
+
+        async init() {
+          await this.fetchPacks();
+        },
+
+        async fetchPacks() {
+          this.errorMessage = '';
+          try {
+            const res = await fetch('http://localhost:8080/packs');
+            const json = await res.json();
+            if (!res.ok) {
+                throw new Error(json.error);
+            }
+            this.packs = json.packs;
+            this.packInput = this.packs.join(',');
+          } catch (err) {
+            this.errorMessage = 'Failed to fetch packs: ' + err.message;
+          }
+        },
+
+        async savePacks() {
+          this.errorMessage = '';
+          const parsed = this.packInput.split(',').map(n => parseInt(n.trim()));
+          try {
+            const res = await fetch('http://localhost:8080/packs', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ packs: parsed })
+            });
+            const json = await res.json();
+            if (!res.ok) {
+                throw new Error(json.error);
+            }
+            await this.fetchPacks();
+          } catch (err) {
+            this.errorMessage = 'Failed to save packs: ' + err.message;
+          }
+        },
+
+        async calculate() {
+          this.errorMessage = '';
+          this.result = {};
+          try {
+            const res = await fetch(`http://localhost:8080/calculate?amount=${this.amount}`);
+            const json = await res.json();
+            if (!res.ok) {
+                throw new Error(json.error);
+            }
+            this.result = json.result;
+          } catch (err) {
+            this.errorMessage = 'Calculation failed: ' + err.message;
+          }
+        }
+      }
+    }
+
+    document.addEventListener('alpine:init', () => {
+      Alpine.data('packCalculator', packCalculator);
+    });
+  </script>
+</body>
+</html>
